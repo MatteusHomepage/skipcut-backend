@@ -5,6 +5,11 @@ const cors = require('cors');
 const app = express();
 app.use(cors());
 
+// ✅ ADD THIS
+app.get('/', (req, res) => {
+  res.send('Backend is running');
+});
+
 app.get('/stream', (req, res) => {
   const url = req.query.url;
 
