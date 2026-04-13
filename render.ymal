@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: skipcut-backend
+    env: node
+    buildCommand: |
+      npm install
+      pip install yt-dlp
+    startCommand: node server.js
