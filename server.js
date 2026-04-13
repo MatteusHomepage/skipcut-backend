@@ -1,41 +1,36 @@
 const express = require("express");
 const cors = require("cors");
-const { exec } = require("child_process");
+const ytdl = require("ytdl-core");
 
 const app = express();
 app.use(cors());
 
-// health check
 app.get("/", (req, res) => {
   res.send("Skipcut backend running");
 });
 
-// stream endpoint
-app.get("/stream", (req, res) => {
+app.get("/stream", async (req, res) => {
   const url = req.query.url;
 
-  if (!url) {
-    return res.status(400).json({ error: true, message: "No URL provided" });
+  if (!url || !ytdl.validateURL(url)) {
+    return res.json({ error: true });
   }
 
-  // IMPORTANT: yt-dlp must exist in Render environment
-  exec(`yt-dlp -f best -g "${url}"`, (err, stdout, stderr) => {
-    if (err) {
-      console.error(stderr);
-      return res.status(500).json({ error: true });
-    }
+  try {
+    const info = await ytdl.getInfo(url);
+    const format = ytdl.chooseFormat(info.formats, { quality: "highest" });
 
-    const streamUrl = stdout.trim();
+    res.json({
+      stream: format.url
+    });
 
-    if (!streamUrl) {
-      return res.status(500).json({ error: true });
-    }
-
-    res.json({ stream: streamUrl });
-  });
+  } catch (err) {
+    console.error(err);
+    res.json({ error: true });
+  }
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log("Server running on port", PORT);
+  console.log("Server running on", PORT);
 });
