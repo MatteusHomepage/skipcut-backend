@@ -1,34 +1,29 @@
 const express = require('express');
-const { exec } = require('child_process');
 const cors = require('cors');
+const ytdlp = require('yt-dlp-exec');
 
 const app = express();
 app.use(cors());
 
-// ✅ ADD THIS
 app.get('/', (req, res) => {
-  res.send('Backend is running');
+  res.send('Backend running');
 });
 
-app.get('/stream', (req, res) => {
+app.get('/stream', async (req, res) => {
   const url = req.query.url;
 
-  exec(`yt-dlp -f best -g "${url}"`, (err, stdout) => {
-    if (err) return res.json({ error: true });
+  try {
+    const output = await ytdlp(url, {
+      format: 'best',
+      getUrl: true
+    });
 
-    res.json({ stream: stdout.trim() });
-  });
-});
+    res.json({ stream: output.trim() });
 
-app.get('/download', (req, res) => {
-  const url = req.query.url;
-
-  exec(`yt-dlp -f best "${url}" -o -`, (err, stdout) => {
-    if (err) return res.send("Download failed");
-
-    res.setHeader('Content-Disposition', 'attachment; filename=\"video.mp4\"');
-    res.send(stdout);
-  });
+  } catch (err) {
+    console.error(err);
+    res.json({ error: true });
+  }
 });
 
 app.listen(3000);
