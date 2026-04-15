@@ -5,10 +5,12 @@ const { execFile } = require("child_process");
 const app = express();
 app.use(cors());
 
+// Health check
 app.get("/", (req, res) => {
   res.send("Skipcut backend running");
 });
 
+// Stream endpoint (FINAL WORKING VERSION)
 app.get("/stream", (req, res) => {
   const url = req.query.url;
 
@@ -16,9 +18,10 @@ app.get("/stream", (req, res) => {
     return res.json({ error: true });
   }
 
-  execFile("./yt-dlp", ["-f", "best", "-g", url], (err, stdout, stderr) => {
+  // Try multiple formats: 18 = safest MP4, 22 = HD MP4, fallback = best
+  execFile("./yt-dlp", ["-f", "18/22/best", "-g", url], (err, stdout, stderr) => {
     if (err) {
-      console.error(stderr);
+      console.error("yt-dlp error:", stderr);
       return res.json({ error: true });
     }
 
@@ -34,5 +37,5 @@ app.get("/stream", (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log("Server running");
+  console.log("Server running on port", PORT);
 });
