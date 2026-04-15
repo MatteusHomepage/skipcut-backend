@@ -1,6 +1,6 @@
 const express = require("express");
 const cors = require("cors");
-const ytdl = require("ytdl-core");
+const { execFile } = require("child_process");
 
 const app = express();
 app.use(cors());
@@ -9,28 +9,30 @@ app.get("/", (req, res) => {
   res.send("Skipcut backend running");
 });
 
-app.get("/stream", async (req, res) => {
+app.get("/stream", (req, res) => {
   const url = req.query.url;
 
-  if (!url || !ytdl.validateURL(url)) {
+  if (!url) {
     return res.json({ error: true });
   }
 
-  try {
-    const info = await ytdl.getInfo(url);
-    const format = ytdl.chooseFormat(info.formats, { quality: "highest" });
+  execFile("./yt-dlp", ["-f", "best", "-g", url], (err, stdout, stderr) => {
+    if (err) {
+      console.error(stderr);
+      return res.json({ error: true });
+    }
 
-    res.json({
-      stream: format.url
-    });
+    const stream = stdout.trim();
 
-  } catch (err) {
-    console.error(err);
-    res.json({ error: true });
-  }
+    if (!stream) {
+      return res.json({ error: true });
+    }
+
+    res.json({ stream });
+  });
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log("Server running on", PORT);
+  console.log("Server running");
 });
