@@ -5,37 +5,54 @@ const { execFile } = require("child_process");
 const app = express();
 app.use(cors());
 
-// Health check
 app.get("/", (req, res) => {
   res.send("Skipcut backend running");
 });
 
-// Stream endpoint (FINAL WORKING VERSION)
+// 🔥 SMART STREAM (multi-format fallback)
 app.get("/stream", (req, res) => {
   const url = req.query.url;
+  if (!url) return res.json({ error: true });
 
-  if (!url) {
-    return res.json({ error: true });
-  }
+  const format = "best[ext=mp4][acodec!=none]/best[ext=mp4]/best";
 
-  // Try multiple formats: 18 = safest MP4, 22 = HD MP4, fallback = best
-  execFile("./yt-dlp", ["-f", "18/22/best", "-g", url], (err, stdout, stderr) => {
-    if (err) {
-      console.error("yt-dlp error:", stderr);
-      return res.json({ error: true });
-    }
+  execFile("./yt-dlp", ["-f", format, "-g", url], (err, stdout) => {
+    if (err) return res.json({ error: true });
 
     const stream = stdout.trim();
-
-    if (!stream) {
-      return res.json({ error: true });
-    }
+    if (!stream) return res.json({ error: true });
 
     res.json({ stream });
   });
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log("Server running on port", PORT);
+// 🔥 GET METADATA (title + thumbnail)
+app.get("/info", (req, res) => {
+  const url = req.query.url;
+  if (!url) return res.json({ error: true });
+
+  execFile("./yt-dlp", ["--dump-json", url], (err, stdout) => {
+    if (err) return res.json({ error: true });
+
+    try {
+      const data = JSON.parse(stdout);
+      res.json({
+        title: data.title,
+        thumbnail: data.thumbnail
+      });
+    } catch {
+      res.json({ error: true });
+    }
+  });
 });
+
+// 🔥 DOWNLOAD (fixed)
+app.get("/download", (req, res) => {
+  const url = req.query.url;
+  if (!url) return res.send("Error");
+
+  res.redirect(`https://www.y2mate.com/youtube/${encodeURIComponent(url)}`);
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log("Running on", PORT));
