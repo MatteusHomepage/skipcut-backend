@@ -5,54 +5,89 @@ const { execFile } = require("child_process");
 const app = express();
 app.use(cors());
 
+// --------------------
+// HEALTH CHECK
+// --------------------
 app.get("/", (req, res) => {
   res.send("Skipcut backend running");
 });
 
-// 🔥 SMART STREAM (multi-format fallback)
+// --------------------
+// STREAM ENDPOINT (FIXED + STRICT + RELIABLE)
+// --------------------
 app.get("/stream", (req, res) => {
   const url = req.query.url;
   if (!url) return res.json({ error: true });
 
-  const format = "best[ext=mp4][acodec!=none]/best[ext=mp4]/best";
+  // STRICT SAFE FORMATS (prioritize real browser-playable MP4)
+  const formats = [
+    "best[ext=mp4][vcodec!=none][acodec!=none]",
+    "best[ext=mp4]",
+    "18",
+    "22",
+    "best"
+  ];
 
-  execFile("./yt-dlp", ["-f", format, "-g", url], (err, stdout) => {
-    if (err) return res.json({ error: true });
+  function tryFormat(i) {
+    if (i >= formats.length) {
+      return res.json({ error: true });
+    }
 
-    const stream = stdout.trim();
-    if (!stream) return res.json({ error: true });
+    execFile("./yt-dlp", ["-f", formats[i], "-g", url], (err, stdout) => {
+      const stream = stdout ? stdout.trim() : "";
 
-    res.json({ stream });
-  });
+      // reject bad or multi-line outputs
+      if (err || !stream || stream.includes("\n")) {
+        return tryFormat(i + 1);
+      }
+
+      return res.json({ stream });
+    });
+  }
+
+  tryFormat(0);
 });
 
-// 🔥 GET METADATA (title + thumbnail)
+// --------------------
+// INFO ENDPOINT (TITLE + THUMBNAIL)
+// --------------------
 app.get("/info", (req, res) => {
   const url = req.query.url;
   if (!url) return res.json({ error: true });
 
   execFile("./yt-dlp", ["--dump-json", url], (err, stdout) => {
-    if (err) return res.json({ error: true });
+    if (err || !stdout) return res.json({ error: true });
 
     try {
       const data = JSON.parse(stdout);
-      res.json({
-        title: data.title,
-        thumbnail: data.thumbnail
+
+      return res.json({
+        title: data.title || "Unknown title",
+        thumbnail: data.thumbnail || ""
       });
     } catch {
-      res.json({ error: true });
+      return res.json({ error: true });
     }
   });
 });
 
-// 🔥 DOWNLOAD (fixed)
+// --------------------
+// DOWNLOAD (simple redirect fallback)
+// --------------------
 app.get("/download", (req, res) => {
   const url = req.query.url;
-  if (!url) return res.send("Error");
+  if (!url) return res.send("Missing URL");
 
-  res.redirect(`https://www.y2mate.com/youtube/${encodeURIComponent(url)}`);
+  // simple fallback (safe external handler approach)
+  return res.redirect(
+    `https://www.y2mate.com/youtube/${encodeURIComponent(url)}`
+  );
 });
 
+// --------------------
+// START SERVER
+// --------------------
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Running on", PORT));
+app.listen(PORT, () => {
+  console.log("Server running on port", PORT);
+});
